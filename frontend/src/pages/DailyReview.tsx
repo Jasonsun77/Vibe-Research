@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, Loader2, AlertCircle, RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Plus, X, Flame, BarChart3 } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Plus, X, Flame, BarChart3, Globe } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AskAiButton } from "@/components/ui/AskAiButton";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { api, ApiError, type IndexQuote, type Quote, type MarketOverview, type ShortTermEmotion, type TurnoverTop } from "@/lib/api";
+import { api, ApiError, type IndexQuote, type Quote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
 import { hasLlm, chatStream } from "@/lib/llm";
 import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
 import { loadWatch, saveWatch } from "@/lib/watchlist";
@@ -28,6 +28,7 @@ export function DailyReview() {
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [emotion, setEmotion] = useState<ShortTermEmotion | null>(null);
   const [turnover, setTurnover] = useState<TurnoverTop | null>(null);
+  const [globalIdx, setGlobalIdx] = useState<GlobalIndex[]>([]);
   // 关注股票（自选，存本地）
   const [watchCodes, setWatchCodes] = useState<string[]>(loadWatch);
   const [watchQuotes, setWatchQuotes] = useState<Record<string, Quote>>({});
@@ -41,6 +42,7 @@ export function DailyReview() {
 
   const loadIndices = () => {
     api.indices().then(setIndices).catch(() => setIdxErr(true));
+    api.globalIndices().then(setGlobalIdx).catch(() => {});
     api.marketOverview().then(setOverview).catch(() => {}).finally(() => setOvDone(true));
     api.emotion().then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
     api.turnoverTop().then(setTurnover).catch(() => {}).finally(() => setToDone(true));
@@ -151,6 +153,27 @@ export function DailyReview() {
               </GlassCard>
             ))}
       </div>
+
+      {/* 1b. 全球市场（隔夜外围脸色：A 股常看美股 / 港股） */}
+      {globalIdx.length > 0 && (
+        <>
+          <div className="mb-3 flex items-center gap-2">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Globe className="h-4 w-4" /> 全球市场</h3>
+            <span className="text-[11px] text-muted-foreground/50">隔夜外围 · A 股常看美股 / 港股脸色</span>
+          </div>
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {globalIdx.map((g) => (
+              <GlassCard key={g.key} className="p-3">
+                <p className="truncate text-xs text-muted-foreground">{g.name} <span className="text-muted-foreground/40">{g.region}</span></p>
+                <p className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
+                <p className={cn("text-xs", g.change_pct == null ? "text-muted-foreground" : pctColor(g.change_pct))}>
+                  {g.change_pct == null ? "—" : `${g.change_pct > 0 ? "+" : ""}${g.change_pct}%`}
+                </p>
+              </GlassCard>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 2. 关注股票（自选） */}
       <div className="mb-3 flex items-center justify-between">

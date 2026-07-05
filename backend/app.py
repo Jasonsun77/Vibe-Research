@@ -20,6 +20,7 @@ from pydantic import BaseModel
 import astock
 import chat as chat_layer
 import cli_runtime
+import gstock
 import newsradar
 import portfolio as pf
 import market
@@ -230,6 +231,29 @@ def market_turnover_top():
         return {"data": market.get_turnover_top()}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"成交额榜异常：{e}") from e
+
+
+@app.get("/api/global/indices")
+def global_indices():
+    """全球指数快照（道指 / 标普500 / 纳斯达克 / 恒生 / 恒生科技）—— A 股看隔夜外围脸色。缓存 5 分钟。"""
+    try:
+        return {"data": market.get_global_indices()}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"全球指数异常：{e}") from e
+
+
+@app.get("/api/global/stock")
+def global_stock(symbol: str = Query(..., min_length=1, max_length=16)):
+    """美股 / 港股个股聚合：行情 + 关键财务指标（东财域内源）。symbol 如 AAPL / BABA / 00700。"""
+    try:
+        data = gstock.us_hk_stock(symbol.strip())
+        if not data:
+            raise HTTPException(404, f"未找到美股/港股代码「{symbol}」")
+        return {"data": data}
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, f"美港股查询异常：{e}") from e
 
 
 @app.get("/api/indices")

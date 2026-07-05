@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 import astock
+import gstock
 
 BEIJING = timezone(timedelta(hours=8))
 _CACHE: dict = {}
@@ -178,3 +179,8 @@ def get_turnover_top() -> dict:
             "updated": datetime.now(BEIJING).strftime("%Y-%m-%d %H:%M"),
         }
     return _cached("turnover_top", build, valid=lambda v: bool(v.get("stocks")))
+
+
+def get_global_indices() -> list[dict]:
+    """全球指数快照（美股 / 港股，含缓存 5 分钟）。空结果不缓存。"""
+    return _cached("global_indices", gstock.global_indices, valid=bool)

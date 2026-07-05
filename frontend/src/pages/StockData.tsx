@@ -12,6 +12,7 @@ import {
   api, ApiError, type Valuation, type Report, type NewsItem, type ValPercentile, type ValMetric,
   type Financials, type Announcement, type MarginRow, type BlockTradeRow, type HolderRow,
   type DividendRow, type FundFlowRow, type DragonTiger, type Lockup, type Blocks, type HotConcept, type QaRow,
+  type GlobalStock,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,17 @@ const yi = (v: number) => `${(v / 1e8).toFixed(2)} 亿`;
 
 const fmt = (v: number | null | undefined, suffix = "") =>
   v === null || v === undefined ? "—" : `${v}${suffix}`;
+
+// A股红涨绿跌（中国平台看美港股也用此惯例）
+const pctColor = (p: number | null | undefined) =>
+  p != null && p > 0 ? "text-danger" : p != null && p < 0 ? "text-success" : "text-muted-foreground";
+const pctStr = (p: number | null | undefined) => (p == null ? "—" : `${p > 0 ? "+" : ""}${p}%`);
+// 美/港股金额（原生币种）
+const curOf = (market: string) => (market === "HK" ? "港元" : "美元");
+const bigMoney = (v: number | null, market: string) =>
+  v == null ? "—" : v >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿${curOf(market)}` : `${(v / 1e8).toFixed(0)} 亿${curOf(market)}`;
+const round2 = (v: number | null | undefined, suffix = "") =>
+  v == null ? "—" : `${Math.round(v * 100) / 100}${suffix}`;
 
 // 百分比：后端偶发给 null/缺字段时显示 —，不出现 "NaN%" / 误导性 "0.00%"
 const pct = (v: number | null | undefined) =>
@@ -86,18 +98,32 @@ export function StockData() {
   const [blocks, setBlocks] = useState<Blocks | null>(null);
   const [hotCon, setHotCon] = useState<HotConcept[]>([]);
   const [qa, setQa] = useState<QaRow[]>([]);
+  const [gstock, setGStock] = useState<GlobalStock | null>(null);  // 美股 / 港股
   const runIdRef = useRef(0);
 
   const run = async () => {
-    const c = code.trim();
-    if (!/^\d{6}$/.test(c)) { setErr("请输入 6 位股票代码"); return; }
-    // 竞态守卫：快速换代码再查时，只让最新一次查询回填页面——
-    // 否则前一只股的慢响应会覆盖后一只股已显示的数据（东财串行限流下常见）
+    const c = code.trim().toUpperCase();
+    if (!c) { setErr("请输入代码"); return; }
     const rid = ++runIdRef.current;
-    const ok = <T,>(set: (v: T) => void) => (v: T) => { if (rid === runIdRef.current) set(v); };
     setLoading(true); setErr(null); setDepNote(null); setVal(null); setReports([]); setNews([]); setPctl(null); setFin(null); setAnns([]);
     setMargin([]); setBlockT([]); setHolders([]); setDividend([]); setFundFlow([]); setDt(null); setLockup(null); setBlocks(null); setHotCon([]); setQa([]);
-    // 资金面/筹码/信号：独立回填、不阻塞主数据（后端对东财串行限流，卡片依次填入）
+    setGStock(null);
+
+    // 6 位纯数字 = A 股；否则（字母 / 港股短代码）走美股 / 港股（global-stock-data）
+    if (!/^\d{6}$/.test(c)) {
+      try {
+        const g = await api.globalStock(c);
+        if (rid === runIdRef.current) setGStock(g);
+      } catch (e) {
+        if (rid === runIdRef.current) setErr(e instanceof ApiError ? e.message : "查询失败");
+      } finally {
+        if (rid === runIdRef.current) setLoading(false);
+      }
+      return;
+    }
+
+    // A 股：竞态守卫（快速换代码时只让最新一次回填）+ 资金面/筹码独立回填、不阻塞主数据
+    const ok = <T,>(set: (v: T) => void) => (v: T) => { if (rid === runIdRef.current) set(v); };
     api.margin(c).then(ok(setMargin)).catch(() => {});
     api.blockTrade(c).then(ok(setBlockT)).catch(() => {});
     api.holders(c).then(ok(setHolders)).catch(() => {});
@@ -157,16 +183,26 @@ export function StockData() {
       `近期研报：${reports.slice(0, 5).map((r) => r.title).join("；") || "无"}`
     : "还没查询个股。输入 6 位代码后可让 AI 基于客观数据帮你分析。";
 
+  const gAiContext = gstock
+    ? `个股（${gstock.market === "HK" ? "港股" : "美股"}）：${gstock.name}（${gstock.code}）\n` +
+      `现价 ${gstock.quote.price ?? "—"} · 涨跌 ${pctStr(gstock.quote.change_pct)} · 总市值 ${bigMoney(gstock.quote.mcap, gstock.market)}\n` +
+      (gstock.metrics
+        ? `财务(${gstock.metrics.report_date})：营收 ${bigMoney(gstock.metrics.revenue, gstock.market)}(同比${round2(gstock.metrics.revenue_yoy, "%")})、归母净利 ${bigMoney(gstock.metrics.net_profit, gstock.market)}、EPS ${gstock.metrics.eps ?? "—"}、ROE ${round2(gstock.metrics.roe, "%")}、毛利率 ${round2(gstock.metrics.gross_margin, "%")}、净利率 ${round2(gstock.metrics.net_margin, "%")}、资产负债率 ${round2(gstock.metrics.debt_ratio, "%")}`
+        : "")
+    : "";
+
   return (
     <div>
       <PageHeader
         title="个股数据"
         subtitle="行情 · 估值 · 研报 · 新闻 —— 客观数据配齐，判断交给你的 AI"
-        actions={val && (
+        actions={(val || gstock) && (
           <AskAiButton
-            context={aiContext}
+            context={gstock ? gAiContext : aiContext}
             label="让 AI 读这些数据"
-            suggestions={["这个估值贵不贵", "机构一致预期怎么看", "近期研报的分歧点", "有什么风险"]}
+            suggestions={gstock
+              ? ["这家公司基本面怎么样", "盈利能力如何", "有什么风险"]
+              : ["这个估值贵不贵", "机构一致预期怎么看", "近期研报的分歧点", "有什么风险"]}
           />
         )}
       />
@@ -175,10 +211,10 @@ export function StockData() {
       <div className="mb-5 flex gap-2">
         <input
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          onChange={(e) => setCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 8))}
           onKeyDown={(e) => e.key === "Enter" && run()}
-          placeholder="输入 6 位股票代码，回车查询"
-          className="w-56 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50"
+          placeholder="A 股 6 位代码，或美股 / 港股代码（AAPL / 00700）"
+          className="w-80 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50"
         />
         <button
           onClick={run}
@@ -194,6 +230,68 @@ export function StockData() {
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" /> {err}
         </div>
+      )}
+
+      {/* 美股 / 港股视图（global-stock-data，东财域内源） */}
+      {gstock && (
+        <>
+          <GlassCard glow className="mb-4">
+            <div className="mb-4 flex items-baseline gap-2">
+              <h2 className="text-xl font-bold">{gstock.name}</h2>
+              <span className="font-mono text-sm text-muted-foreground">{gstock.code}</span>
+              <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">{gstock.market}</span>
+              <span className="ml-auto text-xs text-muted-foreground">{gstock.market === "HK" ? "港股" : "美股"}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { k: "现价", v: fmt(gstock.quote.price), cls: pctColor(gstock.quote.change_pct) },
+                { k: "涨跌幅", v: pctStr(gstock.quote.change_pct), cls: pctColor(gstock.quote.change_pct) },
+                { k: "总市值", v: bigMoney(gstock.quote.mcap, gstock.market), cls: "" },
+                { k: "成交额", v: bigMoney(gstock.quote.amount, gstock.market), cls: "" },
+                { k: "开盘", v: fmt(gstock.quote.open), cls: "" },
+                { k: "最高", v: fmt(gstock.quote.high), cls: "" },
+                { k: "最低", v: fmt(gstock.quote.low), cls: "" },
+                { k: "昨收", v: fmt(gstock.quote.prev_close), cls: "" },
+              ].map((m) => (
+                <div key={m.k} className="rounded-lg bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">{m.k}</p>
+                  <p className={cn("mt-0.5 font-mono text-base font-bold", m.cls)}>{m.v}</p>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+
+          {gstock.metrics && (
+            <GlassCard className="mb-4">
+              <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+                <BarChart3 className="h-4 w-4 text-primary" /> 关键财务指标
+                <span className="text-xs font-normal text-muted-foreground/60">· {gstock.metrics.report_date}</span>
+              </h3>
+              <p className="mb-3 text-[11px] text-muted-foreground/60">东财 GMAININDICATOR，最新报告期。金额为原生币种。</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  { k: "营业收入", v: bigMoney(gstock.metrics.revenue, gstock.market), yoy: gstock.metrics.revenue_yoy != null ? round2(gstock.metrics.revenue_yoy, "%") : "" },
+                  { k: "归母净利", v: bigMoney(gstock.metrics.net_profit, gstock.market), yoy: "" },
+                  { k: "每股收益 EPS", v: round2(gstock.metrics.eps), yoy: "" },
+                  { k: "ROE", v: round2(gstock.metrics.roe, "%"), yoy: "" },
+                  { k: "毛利率", v: round2(gstock.metrics.gross_margin, "%"), yoy: "" },
+                  { k: "净利率", v: round2(gstock.metrics.net_margin, "%"), yoy: "" },
+                  { k: "资产负债率", v: round2(gstock.metrics.debt_ratio, "%"), yoy: "" },
+                ].map((m) => (
+                  <div key={m.k} className="rounded-lg bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">{m.k}</p>
+                    <p className="mt-0.5 font-mono text-base font-bold">{m.v}</p>
+                    {m.yoy && <p className="text-[11px] text-muted-foreground">同比 {m.yoy}</p>}
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          <p className="text-xs text-muted-foreground/60">
+            美股 / 港股数据来自 <a href="https://github.com/simonlin1212/global-stock-data" target="_blank" rel="noreferrer" className="hover:text-primary">global-stock-data</a>（东财域内源）· 金额为原生币种 · 仅客观数据，不含买卖建议。
+          </p>
+        </>
       )}
 
       {val && (

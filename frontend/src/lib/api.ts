@@ -193,12 +193,35 @@ export interface QaRow { company: string; question: string; answer: string | nul
 export interface IndustryRow { rank: number; name: string; change_pct: number; code: string; up_count: number; down_count: number }
 export interface IndustryData { top: IndustryRow[]; bottom: IndustryRow[]; total: number }
 
+// 全球市场（美股 / 港股，移植自 global-stock-data · 东财域内源）
+export interface GlobalIndex {
+  key: string; name: string; region: string;
+  price: number | null; change_pct: number | null;
+}
+export interface GlobalQuote {
+  code: string; name: string;
+  price: number | null; open: number | null; high: number | null; low: number | null;
+  prev_close: number | null; amount: number | null; mcap: number | null; change_pct: number | null;
+}
+export interface GlobalMetrics {
+  report_date: string;
+  revenue: number | null; revenue_yoy: number | null; net_profit: number | null;
+  eps: number | null; roe: number | null; gross_margin: number | null;
+  net_margin: number | null; debt_ratio: number | null;
+}
+export interface GlobalStock {
+  code: string; name: string; market: string;
+  quote: GlobalQuote; metrics: GlobalMetrics | null;
+}
+
 export const api = {
   health: () => get<{ ok: boolean }>("/health"),
   indices: () => get<IndexQuote[]>("/indices"),
   marketOverview: () => get<MarketOverview>("/market/overview"),
   emotion: () => get<ShortTermEmotion>("/market/emotion"),
   turnoverTop: () => get<TurnoverTop>("/market/turnover-top"),
+  globalIndices: () => get<GlobalIndex[]>("/global/indices"),
+  globalStock: (symbol: string) => get<GlobalStock>(`/global/stock?symbol=${encodeURIComponent(symbol)}`),
   radar: () => get<RadarData>("/radar"),
   radarRefresh: () => request<RadarData>("/radar/refresh", "POST"),
   portfolio: () => get<PortfolioData>("/portfolio"),
