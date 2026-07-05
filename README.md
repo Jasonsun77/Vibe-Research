@@ -63,7 +63,7 @@ Vibe-Research 是一个开源的「个人 AI 投研看板」，**主推 A 股、
 
 ## 📡 数据源（Data Sources）
 
-Vibe-Research 把两套公开数据源**直接集成进仓库**——`git clone` 下来**开箱即用，无需另外下载、接线**。
+Vibe-Research 把三套公开数据源**直接集成进仓库**——`git clone` 下来**开箱即用，无需另外下载、接线**。
 
 ### A 股全栈数据 · AStockData
 
@@ -177,10 +177,10 @@ Vibe-Research 用到的数据 / 工具，来自同一套自研开源体系（都
 
 ## 🙏 致谢
 
-- A 股数据引擎：[a-stock-data](https://github.com/simonlin1212/a-stock-data)
-- 美股 / 港股数据引擎：[global-stock-data](https://github.com/simonlin1212/global-stock-data)
-- 资讯：[investment-news](https://github.com/simonlin1212/investment-news)
-- 界面设计语言参考并致谢：[HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading)（仅借鉴 UI，底层为全新实现）
+- A 股数据引擎：[a-stock-data](https://github.com/simonlin1212/a-stock-data)（作者：Simon）
+- 美股 / 港股数据引擎：[global-stock-data](https://github.com/simonlin1212/global-stock-data)（作者：Simon）
+- 资讯：[investment-news](https://github.com/simonlin1212/investment-news)（作者：Simon）
+- 界面设计语言参考并致谢：[HKUDS/Vibe-Trading](https://github.com/HKUDS/Vibe-Trading)（作者：HKUDS · 仅借鉴 UI，底层为全新实现）
 
 ## ⚠️ 免责声明
 
