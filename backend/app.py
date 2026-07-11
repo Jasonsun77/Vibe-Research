@@ -1,10 +1,10 @@
 """Vibe-Research 后端 —— A股数据层 HTTP 接口（FastAPI）。
 
-端点全部在 /api 下，前端 vite 代理 /api → localhost:8900。
+端点全部在 /api 下，前端 vite 代理 /api -> localhost:8901。
 只读、无状态、按用户传入代码返回客观数据。不预置标的、不建议。
 
 启动：
-    uvicorn app:app --host 127.0.0.1 --port 8900
+    uvicorn app:app --host 127.0.0.1 --port 8901
 """
 
 from __future__ import annotations

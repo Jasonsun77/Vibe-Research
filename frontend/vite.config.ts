@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   // 默认用 127.0.0.1 而非 localhost：部分 macOS/Node 会把 localhost 优先解析到 IPv6 ::1，
   // 而后端常只监听 127.0.0.1:8900（IPv4），导致 /api 代理 ECONNREFUSED（issue #8）。
-  const apiTarget = env.VITE_API_URL || "http://127.0.0.1:8900";
+  const apiTarget = env.VITE_API_URL || "http://127.0.0.1:8901";
 
   return {
     plugins: [react()],
@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       alias: { "@": path.resolve(__dirname, "./src") },
     },
     server: {
-      port: 5899,
+      port: 5900,
       proxy: {
         "/api": { target: apiTarget, changeOrigin: true },
       },
